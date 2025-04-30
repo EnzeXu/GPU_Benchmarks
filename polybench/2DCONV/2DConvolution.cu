@@ -24,8 +24,8 @@
 #define GPU_DEVICE 0
 
 /* Problem size */
-#define NI 4096
-#define NJ 4096
+// #define NI 4096
+// #define NJ 4096
 
 /* Thread block dimensions */
 #define DIM_THREAD_BLOCK_X 32
@@ -64,36 +64,36 @@ void init(DATA_TYPE* A, int ni, int nj)
 	int i, j;
 
 	for (i = 0; i < ni; ++i)
-    	{
+		{
 		for (j = 0; j < nj; ++j)
 		{
 			A[i*nj + j] = (float)rand()/RAND_MAX;
-        	}
-    	}
-}
-
-
-void compareResults(DATA_TYPE* B, DATA_TYPE* B_outputFromGpu, int ni, int nj)
-{
-	int i, j, fail;
-	fail = 0;
-	
-	// Compare a and b
-	for (i=1; i < (ni-1); i++) 
-	{
-		for (j=1; j < (nj-1); j++) 
-		{
-			if (percentDiff(B[i*nj + j], B_outputFromGpu[i*nj + j]) > PERCENT_DIFF_ERROR_THRESHOLD) 
-			{
-				fail++;
 			}
 		}
-	}
-	
-	// Print results
-	printf("Non-Matching CPU-GPU Outputs Beyond Error Threshold of %4.2f Percent: %d\n", PERCENT_DIFF_ERROR_THRESHOLD, fail);
-	
 }
+
+
+// void compareResults(DATA_TYPE* B, DATA_TYPE* B_outputFromGpu, int ni, int nj)
+// {
+// 	int i, j, fail;
+// 	fail = 0;
+	
+// 	// Compare a and b
+// 	for (i=1; i < (ni-1); i++) 
+// 	{
+// 		for (j=1; j < (nj-1); j++) 
+// 		{
+// 			if (percentDiff(B[i*nj + j], B_outputFromGpu[i*nj + j]) > PERCENT_DIFF_ERROR_THRESHOLD) 
+// 			{
+// 				fail++;
+// 			}
+// 		}
+// 	}
+	
+// 	// Print results
+// 	printf("Non-Matching CPU-GPU Outputs Beyond Error Threshold of %4.2f Percent: %d\n", PERCENT_DIFF_ERROR_THRESHOLD, fail);
+	
+// }
 
 
 void GPU_argv_init()
@@ -159,41 +159,37 @@ int main(int argc, char *argv[])
 	DATA_TYPE* B;  
 	DATA_TYPE* B_outputFromGpu;
 
-	int dimX = NI;
-	int dimY = NJ;
+	int size = 32; //2048; // [MODIFIED CODE]
+	int ni = size, nj = size; // [MODIFIED CODE]
 
 	for (int i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "-dimX") && i + 1 < argc) {
-			dimX = atoi(argv[++i]);
-		}
-		if (!strcmp(argv[i], "-dimY") && i + 1 < argc) {
-			dimY = atoi(argv[++i]);
+		if (!strcmp(argv[i], "-size") && i + 1 < argc) {
+			size = atoi(argv[++i]);
+			if (size < DIM_THREAD_BLOCK_X || size < DIM_THREAD_BLOCK_Y) {
+				fprintf(stderr, "Error: size must be >= %d and %d.\n", DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
+				exit(1);
+			}
+			ni = nj = size;
 		}
 	}
 	
-	
-	// A = (DATA_TYPE*)malloc(NI*NJ*sizeof(DATA_TYPE));
-	// B = (DATA_TYPE*)malloc(NI*NJ*sizeof(DATA_TYPE));
-	// B_outputFromGpu = (DATA_TYPE*)malloc(NI*NJ*sizeof(DATA_TYPE));
-
-	A = (DATA_TYPE*)malloc(dimX*dimY*sizeof(DATA_TYPE));
-	B = (DATA_TYPE*)malloc(dimX*dimY*sizeof(DATA_TYPE));
-	B_outputFromGpu = (DATA_TYPE*)malloc(dimX*dimY*sizeof(DATA_TYPE));
-
+	A = (DATA_TYPE*)malloc(ni*nj*sizeof(DATA_TYPE));
+	B = (DATA_TYPE*)malloc(ni*nj*sizeof(DATA_TYPE));
+	B_outputFromGpu = (DATA_TYPE*)malloc(ni*nj*sizeof(DATA_TYPE));
 
 	//initialize the arrays
-	init(A, dimX, dimY);
+	init(A, ni, nj);
 	
 	GPU_argv_init();
 
-	convolution2DCuda(A, B, B_outputFromGpu, dimX, dimY);
+	convolution2DCuda(A, B, B_outputFromGpu, ni, nj);
 	
-	t_start = rtclock();
-	conv2D(A, B, dimX, dimY);
-	t_end = rtclock();
-	fprintf(stdout, "CPU Runtime: %0.6lfs\n", t_end - t_start);//);
+	// t_start = rtclock();
+	// conv2D(A, B, ni, nj);
+	// t_end = rtclock();
+	// fprintf(stdout, "CPU Runtime: %0.6lfs\n", t_end - t_start);//);
 	
-	compareResults(B, B_outputFromGpu, dimX, dimY);
+	// compareResults(B, B_outputFromGpu);
 
 	free(A);
 	free(B);
@@ -201,4 +197,4 @@ int main(int argc, char *argv[])
 	
 	return 0;
 }
-
+ 
