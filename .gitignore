@@ -6,3 +6,7 @@ cuda-samples-2.0/
 Galois/
 gpu-rodinia/
 polybench-gpu/
+accelsim-micro/
+lonestar-raw/
+polybench/ATAX-blockdimx/
+polybench/BICG-blockdimx/
