@@ -28,7 +28,7 @@
 // # define NL 2048
 
 /* Thread block dimensions */
-#define DIM_THREAD_BLOCK_X 32
+// #define DIM_THREAD_BLOCK_X 32
 #define DIM_THREAD_BLOCK_Y 8
 
 /* Can switch DATA_TYPE between float and double */
@@ -157,7 +157,7 @@ void mm2_cpu(DATA_TYPE* A, DATA_TYPE* B, DATA_TYPE* C, DATA_TYPE* D, DATA_TYPE* 
 	}
 }
 
-void mm2Cuda(DATA_TYPE* A, DATA_TYPE* B, DATA_TYPE* C, DATA_TYPE* D, DATA_TYPE* E, DATA_TYPE* E_outputFromGpu, int ni, int nj, int nk, int nl) // [MODIFIED CODE]
+void mm2Cuda(DATA_TYPE* A, DATA_TYPE* B, DATA_TYPE* C, DATA_TYPE* D, DATA_TYPE* E, DATA_TYPE* E_outputFromGpu, int ni, int nj, int nk, int nl, int dim_thread_block_x) // [MODIFIED CODE]
 {
 	double t_start, t_end;
 
@@ -175,7 +175,7 @@ void mm2Cuda(DATA_TYPE* A, DATA_TYPE* B, DATA_TYPE* C, DATA_TYPE* D, DATA_TYPE* 
 	cudaMemcpy(D_gpu, D, sizeof(DATA_TYPE) * nj * nl, cudaMemcpyHostToDevice);
 	cudaMemcpy(E_gpu, E, sizeof(DATA_TYPE) * ni * nl, cudaMemcpyHostToDevice);	
 
-	dim3 block(DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
+	dim3 block(dim_thread_block_x, DIM_THREAD_BLOCK_Y);
 	dim3 grid1((size_t)ceil( ((float)nj) / ((float)block.x) ), (size_t)ceil( ((float)ni) / ((float)block.y)) );
 	dim3 grid2((size_t)ceil( ((float)nl) / ((float)block.x) ), (size_t)ceil( ((float)ni) / ((float)block.y)) );
 
@@ -196,20 +196,24 @@ int main(int argc, char** argv)
 {
 	double t_start, t_end;
 
-	int size = 128; //2048; // [MODIFIED CODE]
+	int dim_thread_block_x = 32;
+	int size = 32; //2048; // [MODIFIED CODE]
 	int ni = size, nj = size, nk = size, nl = size; // [MODIFIED CODE]
 
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-size") && i + 1 < argc) {
 			size = atoi(argv[++i]);
-			if (size < DIM_THREAD_BLOCK_X || size < DIM_THREAD_BLOCK_Y) {
-				fprintf(stderr, "Error: size must be >= %d and %d.\n", DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
-				exit(1);
-			}
 			ni = nj = nk = nl = size;
 		}
+		if (!strcmp(argv[i], "-blockDimX") && i + 1 < argc) {
+			dim_thread_block_x = atoi(argv[++i]);
+		}
+		if (size < dim_thread_block_x || size < DIM_THREAD_BLOCK_Y) {
+			fprintf(stderr, "Error: size must be >= dim_thread_block_x=%d and dim_thread_block_y=%d.\n", dim_thread_block_x, DIM_THREAD_BLOCK_Y);
+			exit(1);
+		}
 	}
-	// printf("ni = %d, nj = %d, nk = %d, nl = %d", ni, nj, nk, nl);
+	printf("size=%d, dim_thread_block_x=%d\n", size, dim_thread_block_x);
 
 	DATA_TYPE *C = (DATA_TYPE*)malloc(ni*nj*sizeof(DATA_TYPE));
 	DATA_TYPE *A = (DATA_TYPE*)malloc(ni*nk*sizeof(DATA_TYPE));
@@ -221,7 +225,7 @@ int main(int argc, char** argv)
 	init_array(A, B, C, D, ni, nj, nk, nl);
 	GPU_argv_init();
 
-	mm2Cuda(A, B, C, D, E, E_outputFromGpu, ni, nj, nk, nl);
+	mm2Cuda(A, B, C, D, E, E_outputFromGpu, ni, nj, nk, nl, dim_thread_block_x); // [MODIFIED CODE]
 
 	// t_start = rtclock();
 	// mm2_cpu(A, B, C, D, E, ni, nj, nk, nl);

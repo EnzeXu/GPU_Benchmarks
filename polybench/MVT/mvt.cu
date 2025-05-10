@@ -23,10 +23,10 @@
 #define GPU_DEVICE 0
 
 /* Problem size */
-#define N 4096
+// #define N 4096
 
 /* Thread block dimensions */
-#define DIM_THREAD_BLOCK_X 256
+// #define DIM_THREAD_BLOCK_X 256
 #define DIM_THREAD_BLOCK_Y 1
 
 /* Can switch DATA_TYPE between float and double */
@@ -136,7 +136,7 @@ __global__ void mvt_kernel2(DATA_TYPE *a, DATA_TYPE *x2, DATA_TYPE *y_2, int n)
 }
 
 void mvtCuda(DATA_TYPE* a, DATA_TYPE* x1, DATA_TYPE* x2, DATA_TYPE* y_1, DATA_TYPE* y_2, 
-			DATA_TYPE* x1_outputFromGpu, DATA_TYPE* x2_outputFromGpu, int n)
+			DATA_TYPE* x1_outputFromGpu, DATA_TYPE* x2_outputFromGpu, int n, int dim_thread_block_x)
 {
 	double t_start, t_end;
 
@@ -157,8 +157,8 @@ void mvtCuda(DATA_TYPE* a, DATA_TYPE* x1, DATA_TYPE* x2, DATA_TYPE* y_1, DATA_TY
 	cudaMemcpy(y_1_gpu, y_1, sizeof(DATA_TYPE) * n, cudaMemcpyHostToDevice);
 	cudaMemcpy(y_2_gpu, y_2, sizeof(DATA_TYPE) * n, cudaMemcpyHostToDevice);
 	
-	dim3 block(DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
-	dim3 grid((size_t)ceil((float)n/ ((float)DIM_THREAD_BLOCK_X)), 1);
+	dim3 block(dim_thread_block_x, DIM_THREAD_BLOCK_Y);
+	dim3 grid((size_t)ceil((float)n/ ((float)dim_thread_block_x)), 1);
 	
 	t_start = rtclock();
 	mvt_kernel1<<<grid,block>>>(a_gpu,x1_gpu,y_1_gpu, n);
@@ -190,13 +190,32 @@ int main(int argc, char *argv[])
 	DATA_TYPE* y_1;
 	DATA_TYPE* y_2;
 
-	int n = N;
+	// int n = N;
+
+	// for (int i = 1; i < argc; i++) {
+	// 	if (!strcmp(argv[i], "-size") && i + 1 < argc) {
+	// 		n = atoi(argv[++i]);
+	// 	}
+	// }
+
+	int dim_thread_block_x = 32;
+	int size = 4096; //2048; // [MODIFIED CODE]
+	int n = size, m = size; // [MODIFIED CODE]
 
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-size") && i + 1 < argc) {
-			n = atoi(argv[++i]);
+			size = atoi(argv[++i]);
+			n = size;
+		}
+		if (!strcmp(argv[i], "-blockDimX") && i + 1 < argc) {
+			dim_thread_block_x = atoi(argv[++i]);
+		}
+		if (size < dim_thread_block_x || size < DIM_THREAD_BLOCK_Y) {
+			fprintf(stderr, "Error: size must be >= dim_thread_block_x=%d and dim_thread_block_y=%d.\n", dim_thread_block_x, DIM_THREAD_BLOCK_Y);
+			exit(1);
 		}
 	}
+	printf("size=%d, dim_thread_block_x=%d\n", size, dim_thread_block_x);
 
 	// a = (DATA_TYPE*)malloc(N*N*sizeof(DATA_TYPE));
 	// x1 = (DATA_TYPE*)malloc(N*sizeof(DATA_TYPE));
@@ -218,17 +237,17 @@ int main(int argc, char *argv[])
 	
 	GPU_argv_init();
 
-	mvtCuda(a, x1, x2, y_1, y_2, x1_outputFromGpu, x2_outputFromGpu, n);
+	mvtCuda(a, x1, x2, y_1, y_2, x1_outputFromGpu, x2_outputFromGpu, n, dim_thread_block_x);
 	
-	t_start = rtclock();
+	// t_start = rtclock();
 
-	//run the algorithm on the CPU
-	runMvt(a, x1, x2, y_1, y_2, n);
+	// //run the algorithm on the CPU
+	// runMvt(a, x1, x2, y_1, y_2, n);
 
-	t_end = rtclock();
-	fprintf(stdout, "CPU Runtime: %0.6lfs\n", t_end - t_start);
+	// t_end = rtclock();
+	// fprintf(stdout, "CPU Runtime: %0.6lfs\n", t_end - t_start);
 	
-	compareResults(x1, x1_outputFromGpu, x2, x2_outputFromGpu, n);
+	// compareResults(x1, x1_outputFromGpu, x2, x2_outputFromGpu, n);
 
 	free(a);
 	free(x1);

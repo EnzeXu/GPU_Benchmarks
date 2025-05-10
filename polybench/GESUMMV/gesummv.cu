@@ -27,7 +27,7 @@
 // #define n 4096
 
 /* Thread block dimensions */
-#define DIM_THREAD_BLOCK_X 32 // 256
+// #define DIM_THREAD_BLOCK_X 32 // 256
 #define DIM_THREAD_BLOCK_Y 1
 
 /* Declared constant values for ALPHA and BETA (same as values in PolyBench 2.0) */
@@ -117,7 +117,7 @@ __global__ void gesummv_kernel(DATA_TYPE *a, DATA_TYPE *b, DATA_TYPE *x, DATA_TY
 	}
 }
 
-void gesummvCuda(DATA_TYPE* A, DATA_TYPE* B, DATA_TYPE* x, DATA_TYPE* y, DATA_TYPE* tmp, DATA_TYPE* y_outputFromGpu, int n)
+void gesummvCuda(DATA_TYPE* A, DATA_TYPE* B, DATA_TYPE* x, DATA_TYPE* y, DATA_TYPE* tmp, DATA_TYPE* y_outputFromGpu, int n, int dim_thread_block_x)
 {
 	double t_start, t_end;		
 
@@ -139,7 +139,7 @@ void gesummvCuda(DATA_TYPE* A, DATA_TYPE* B, DATA_TYPE* x, DATA_TYPE* y, DATA_TY
 	cudaMemcpy(y_gpu, y, sizeof(DATA_TYPE) * n, cudaMemcpyHostToDevice);
 	cudaMemcpy(tmp_gpu, tmp, sizeof(DATA_TYPE) * n, cudaMemcpyHostToDevice);
 
-	dim3 block(DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
+	dim3 block(dim_thread_block_x, DIM_THREAD_BLOCK_Y);
 	dim3 grid((unsigned int)ceil( ((float)n) / ((float)block.x) ), 1);
 
 
@@ -164,19 +164,25 @@ int main(int argc, char *argv[])
 	DATA_TYPE* y_outputFromGpu;
 	DATA_TYPE* tmp;
 
+
+	int dim_thread_block_x = 32;
 	int size = 32; //2048; // [MODIFIED CODE]
 	int n = size; // [MODIFIED CODE]
 
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-size") && i + 1 < argc) {
 			size = atoi(argv[++i]);
-			if (size < DIM_THREAD_BLOCK_X || size < DIM_THREAD_BLOCK_Y) {
-				fprintf(stderr, "Error: size must be >= %d and %d.\n", DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
-				exit(1);
-			}
 			n = size;
 		}
+		if (!strcmp(argv[i], "-blockDimX") && i + 1 < argc) {
+			dim_thread_block_x = atoi(argv[++i]);
+		}
+		if (size < dim_thread_block_x || size < DIM_THREAD_BLOCK_Y) {
+			fprintf(stderr, "Error: size must be >= dim_thread_block_x=%d and dim_thread_block_y=%d.\n", dim_thread_block_x, DIM_THREAD_BLOCK_Y);
+			exit(1);
+		}
 	}
+	printf("size=%d, dim_thread_block_x=%d\n", size, dim_thread_block_x);
 	
 	A = (DATA_TYPE*)malloc(n*n*sizeof(DATA_TYPE));
 	B = (DATA_TYPE*)malloc(n*n*sizeof(DATA_TYPE));
@@ -188,7 +194,7 @@ int main(int argc, char *argv[])
 	init(A, x, n);
 	
 	GPU_argv_init();
-	gesummvCuda(A, B, x, y, tmp, y_outputFromGpu, n);
+	gesummvCuda(A, B, x, y, tmp, y_outputFromGpu, n, dim_thread_block_x);
 	
 	// t_start = rtclock();
 	// gesummv(A, B, x, y, tmp, n);

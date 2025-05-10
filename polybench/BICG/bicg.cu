@@ -26,7 +26,7 @@
 // #define NY 4096
 
 /* Thread block dimensions */
-#define DIM_THREAD_BLOCK_X 32 // 256
+// #define DIM_THREAD_BLOCK_X 32 // 256
 #define DIM_THREAD_BLOCK_Y 1
 
 #ifndef M_PI
@@ -153,7 +153,7 @@ void bicg_cpu(DATA_TYPE* A, DATA_TYPE* r, DATA_TYPE* s, DATA_TYPE* p, DATA_TYPE*
 
 
 void bicgCuda(DATA_TYPE* A, DATA_TYPE* r, DATA_TYPE* s, DATA_TYPE* p, DATA_TYPE* q,
-			DATA_TYPE* s_outputFromGpu, DATA_TYPE* q_outputFromGpu, int nx, int ny)
+			DATA_TYPE* s_outputFromGpu, DATA_TYPE* q_outputFromGpu, int nx, int ny, int dim_thread_block_x)
 {
 	double t_start, t_end;
 
@@ -174,7 +174,7 @@ void bicgCuda(DATA_TYPE* A, DATA_TYPE* r, DATA_TYPE* s, DATA_TYPE* p, DATA_TYPE*
 	cudaMemcpy(p_gpu, p, sizeof(DATA_TYPE) * ny, cudaMemcpyHostToDevice);
 	cudaMemcpy(q_gpu, q, sizeof(DATA_TYPE) * nx, cudaMemcpyHostToDevice);
 
-	dim3 block(DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
+	dim3 block(dim_thread_block_x, DIM_THREAD_BLOCK_Y);
 	dim3 grid1((size_t)(ceil( ((float)ny) / ((float)block.x) )), 1);
 	dim3 grid2((size_t)(ceil( ((float)nx) / ((float)block.x) )), 1);
 
@@ -209,19 +209,24 @@ int main(int argc, char** argv)
 	DATA_TYPE* s_outputFromGpu;
 	DATA_TYPE* q_outputFromGpu;
 
+	int dim_thread_block_x = 32;
 	int size = 32; //2048; // [MODIFIED CODE]
 	int nx = size, ny = size; // [MODIFIED CODE]
 
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-size") && i + 1 < argc) {
 			size = atoi(argv[++i]);
-			if (size < DIM_THREAD_BLOCK_X || size < DIM_THREAD_BLOCK_Y) {
-				fprintf(stderr, "Error: size must be >= %d and %d.\n", DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
-				exit(1);
-			}
 			nx = ny = size;
 		}
+		if (!strcmp(argv[i], "-blockDimX") && i + 1 < argc) {
+			dim_thread_block_x = atoi(argv[++i]);
+		}
+		if (size < dim_thread_block_x || size < DIM_THREAD_BLOCK_Y) {
+			fprintf(stderr, "Error: size must be >= dim_thread_block_x=%d and dim_thread_block_y=%d.\n", dim_thread_block_x, DIM_THREAD_BLOCK_Y);
+			exit(1);
+		}
 	}
+	printf("size=%d, dim_thread_block_x=%d\n", size, dim_thread_block_x);
  	
 	A = (DATA_TYPE*)malloc(nx*ny*sizeof(DATA_TYPE));
 	r = (DATA_TYPE*)malloc(nx*sizeof(DATA_TYPE));
@@ -235,7 +240,7 @@ int main(int argc, char** argv)
 
 	GPU_argv_init();
 
-	bicgCuda(A, r, s, p, q, s_outputFromGpu, q_outputFromGpu, nx, ny);
+	bicgCuda(A, r, s, p, q, s_outputFromGpu, q_outputFromGpu, nx, ny, dim_thread_block_x); // [MODIFIED CODE]
 
 	// t_start = rtclock();
 	// bicg_cpu(A, r, s, p, q, nx, ny);

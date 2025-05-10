@@ -28,7 +28,7 @@
 // #define NJ 4096
 
 /* Thread block dimensions */
-#define DIM_THREAD_BLOCK_X 32
+// #define DIM_THREAD_BLOCK_X 32
 #define DIM_THREAD_BLOCK_Y 8
 
 /* Can switch DATA_TYPE between float and double */
@@ -125,7 +125,7 @@ __global__ void Convolution2D_kernel(DATA_TYPE *A, DATA_TYPE *B, int ni, int nj)
 }
 
 
-void convolution2DCuda(DATA_TYPE* A, DATA_TYPE* B, DATA_TYPE* B_outputFromGpu, int ni, int nj)
+void convolution2DCuda(DATA_TYPE* A, DATA_TYPE* B, DATA_TYPE* B_outputFromGpu, int ni, int nj, int dim_thread_block_x)
 {
 	double t_start, t_end;
 
@@ -136,7 +136,7 @@ void convolution2DCuda(DATA_TYPE* A, DATA_TYPE* B, DATA_TYPE* B_outputFromGpu, i
 	cudaMalloc((void **)&B_gpu, sizeof(DATA_TYPE) * ni * nj);
 	cudaMemcpy(A_gpu, A, sizeof(DATA_TYPE) * ni * nj, cudaMemcpyHostToDevice);
 	
-	dim3 block(DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
+	dim3 block(dim_thread_block_x, DIM_THREAD_BLOCK_Y);
 	dim3 grid((size_t)ceil( ((float)ni) / ((float)block.x) ), (size_t)ceil( ((float)nj) / ((float)block.y)) );
 	t_start = rtclock();
 	Convolution2D_kernel<<<grid,block>>>(A_gpu,B_gpu,ni,nj);
@@ -159,19 +159,24 @@ int main(int argc, char *argv[])
 	DATA_TYPE* B;  
 	DATA_TYPE* B_outputFromGpu;
 
+	int dim_thread_block_x = 32;
 	int size = 32; //2048; // [MODIFIED CODE]
 	int ni = size, nj = size; // [MODIFIED CODE]
 
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-size") && i + 1 < argc) {
 			size = atoi(argv[++i]);
-			if (size < DIM_THREAD_BLOCK_X || size < DIM_THREAD_BLOCK_Y) {
-				fprintf(stderr, "Error: size must be >= %d and %d.\n", DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
-				exit(1);
-			}
 			ni = nj = size;
 		}
+		if (!strcmp(argv[i], "-blockDimX") && i + 1 < argc) {
+			dim_thread_block_x = atoi(argv[++i]);
+		}
+		if (size < dim_thread_block_x || size < DIM_THREAD_BLOCK_Y) {
+			fprintf(stderr, "Error: size must be >= dim_thread_block_x=%d and dim_thread_block_y=%d.\n", dim_thread_block_x, DIM_THREAD_BLOCK_Y);
+			exit(1);
+		}
 	}
+	printf("size=%d, dim_thread_block_x=%d\n", size, dim_thread_block_x);
 	
 	A = (DATA_TYPE*)malloc(ni*nj*sizeof(DATA_TYPE));
 	B = (DATA_TYPE*)malloc(ni*nj*sizeof(DATA_TYPE));
@@ -182,7 +187,7 @@ int main(int argc, char *argv[])
 	
 	GPU_argv_init();
 
-	convolution2DCuda(A, B, B_outputFromGpu, ni, nj);
+	convolution2DCuda(A, B, B_outputFromGpu, ni, nj, dim_thread_block_x);
 	
 	// t_start = rtclock();
 	// conv2D(A, B, ni, nj);

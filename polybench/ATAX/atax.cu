@@ -27,7 +27,7 @@
 // #define NY 4096
 
 /* Thread block dimensions */
-#define DIM_THREAD_BLOCK_X 32 // 256
+// #define dim_thread_block_x 32 // 256
 #define DIM_THREAD_BLOCK_Y 1
 
 #ifndef M_PI
@@ -136,7 +136,7 @@ void atax_cpu(DATA_TYPE* A, DATA_TYPE* x, DATA_TYPE* y, DATA_TYPE* tmp, int nx, 
 }
 
 
-void ataxGpu(DATA_TYPE* A, DATA_TYPE* x, DATA_TYPE* y, DATA_TYPE* tmp, DATA_TYPE* y_outputFromGpu, int nx, int ny)
+void ataxGpu(DATA_TYPE* A, DATA_TYPE* x, DATA_TYPE* y, DATA_TYPE* tmp, DATA_TYPE* y_outputFromGpu, int nx, int ny, int dim_thread_block_x)
 {
 	double t_start, t_end;
 
@@ -155,7 +155,7 @@ void ataxGpu(DATA_TYPE* A, DATA_TYPE* x, DATA_TYPE* y, DATA_TYPE* tmp, DATA_TYPE
 	cudaMemcpy(y_gpu, y, sizeof(DATA_TYPE) * ny, cudaMemcpyHostToDevice);
 	cudaMemcpy(tmp_gpu, tmp, sizeof(DATA_TYPE) * nx, cudaMemcpyHostToDevice);
 	
-	dim3 block(DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
+	dim3 block(dim_thread_block_x, DIM_THREAD_BLOCK_Y);
 	dim3 grid1((size_t)(ceil( ((float)nx) / ((float)block.x) )), 1);
 	dim3 grid2((size_t)(ceil( ((float)ny) / ((float)block.x) )), 1);
 
@@ -186,19 +186,25 @@ int main(int argc, char** argv)
 	DATA_TYPE* y_outputFromGpu;
 	DATA_TYPE* tmp;
 
+
+	int dim_thread_block_x = 32;
 	int size = 32; //2048; // [MODIFIED CODE]
 	int nx = size, ny = size; // [MODIFIED CODE]
 
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-size") && i + 1 < argc) {
 			size = atoi(argv[++i]);
-			if (size < DIM_THREAD_BLOCK_X || size < DIM_THREAD_BLOCK_Y) {
-				fprintf(stderr, "Error: size must be >= %d and %d.\n", DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
-				exit(1);
-			}
 			nx = ny = size;
 		}
+		if (!strcmp(argv[i], "-blockDimX") && i + 1 < argc) {
+			dim_thread_block_x = atoi(argv[++i]);
+		}
+		if (size < dim_thread_block_x || size < DIM_THREAD_BLOCK_Y) {
+			fprintf(stderr, "Error: size must be >= dim_thread_block_x=%d and dim_thread_block_y=%d.\n", dim_thread_block_x, DIM_THREAD_BLOCK_Y);
+			exit(1);
+		}
 	}
+	printf("size=%d, dim_thread_block_x=%d\n", size, dim_thread_block_x);
 
 	A = (DATA_TYPE*)malloc(nx*ny*sizeof(DATA_TYPE));
 	x = (DATA_TYPE*)malloc(ny*sizeof(DATA_TYPE));
@@ -209,7 +215,7 @@ int main(int argc, char** argv)
 	init_array(x, A, nx, ny);
 
 	GPU_argv_init();
-	ataxGpu(A, x, y, tmp, y_outputFromGpu, nx, ny);
+	ataxGpu(A, x, y, tmp, y_outputFromGpu, nx, ny, dim_thread_block_x); // [MODIFIED CODE]
 	
 	// t_start = rtclock();
 	// atax_cpu(A, x, y, tmp, nx, ny);

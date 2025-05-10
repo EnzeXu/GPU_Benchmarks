@@ -29,7 +29,7 @@
 // #define NK 512
 
 /* Thread block dimensions */
-#define DIM_THREAD_BLOCK_X 32
+// #define DIM_THREAD_BLOCK_X 32
 #define DIM_THREAD_BLOCK_Y 8
 
 /* Declared constant values for ALPHA and BETA (same as values in PolyBench 2.0) */
@@ -138,7 +138,7 @@ __global__ void gemm_kernel(DATA_TYPE *a, DATA_TYPE *b, DATA_TYPE *c, int ni, in
 }
 
 
-void gemmCuda(DATA_TYPE* A, DATA_TYPE* B, DATA_TYPE* C, DATA_TYPE* C_outputFromGpu, int ni, int nj, int nk)
+void gemmCuda(DATA_TYPE* A, DATA_TYPE* B, DATA_TYPE* C, DATA_TYPE* C_outputFromGpu, int ni, int nj, int nk, int dim_thread_block_x)
 {
 	double t_start, t_end;
 
@@ -154,7 +154,7 @@ void gemmCuda(DATA_TYPE* A, DATA_TYPE* B, DATA_TYPE* C, DATA_TYPE* C_outputFromG
 	cudaMemcpy(B_gpu, B, sizeof(DATA_TYPE) * nk * nj, cudaMemcpyHostToDevice);
 	cudaMemcpy(C_gpu, C, sizeof(DATA_TYPE) * ni * nj, cudaMemcpyHostToDevice);
 	
-	dim3 block(DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
+	dim3 block(dim_thread_block_x, DIM_THREAD_BLOCK_Y);
 	dim3 grid((size_t)(ceil( ((float)ni)/ ((float)block.x) )),(size_t)(ceil( ((float)nj)/ ((float)block.y) )));
 
 	t_start = rtclock();
@@ -181,20 +181,25 @@ int main(int argc, char *argv[])
 	DATA_TYPE* B;  
 	DATA_TYPE* C;  
 	DATA_TYPE* C_outputFromGpu;
-	
-	int size = 128; //2048; // [MODIFIED CODE]
+
+	int dim_thread_block_x = 32;
+	int size = 32; //2048; // [MODIFIED CODE]
 	int ni = size, nj = size, nk = size; // [MODIFIED CODE]
 
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "-size") && i + 1 < argc) {
 			size = atoi(argv[++i]);
-			if (size < DIM_THREAD_BLOCK_X || size < DIM_THREAD_BLOCK_Y) {
-				fprintf(stderr, "Error: size must be >= %d and %d.\n", DIM_THREAD_BLOCK_X, DIM_THREAD_BLOCK_Y);
-				exit(1);
-			}
 			ni = nj = nk = size;
 		}
+		if (!strcmp(argv[i], "-blockDimX") && i + 1 < argc) {
+			dim_thread_block_x = atoi(argv[++i]);
+		}
+		if (size < dim_thread_block_x || size < DIM_THREAD_BLOCK_Y) {
+			fprintf(stderr, "Error: size must be >= dim_thread_block_x=%d and dim_thread_block_y=%d.\n", dim_thread_block_x, DIM_THREAD_BLOCK_Y);
+			exit(1);
+		}
 	}
+	printf("size=%d, dim_thread_block_x=%d\n", size, dim_thread_block_x);
 
 	A = (DATA_TYPE*)malloc(ni*nk*sizeof(DATA_TYPE)); 
 	B = (DATA_TYPE*)malloc(nk*nj*sizeof(DATA_TYPE));   
@@ -205,7 +210,7 @@ int main(int argc, char *argv[])
 	
 	GPU_argv_init();
 	
-	gemmCuda(A, B, C, C_outputFromGpu, ni, nj, nk);
+	gemmCuda(A, B, C, C_outputFromGpu, ni, nj, nk, dim_thread_block_x);
 
 	// t_start = rtclock();	
 	// gemm(A, B, C, ni, nj, nk);
